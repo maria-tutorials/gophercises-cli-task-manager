@@ -46,6 +46,33 @@ func CreateTask(task string) (int, error) {
 	return id, nil
 }
 
+// AllTasks displays all tasks
+func AllTasks() ([]Task, error) {
+	t := []Task{}
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(tasksBucket)
+		c := b.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			t = append(t, Task{
+				Key:   btoi(k),
+				Value: string(v),
+			})
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// GetTask shows a single task TODO:
+func GetTask() {
+
+}
+
 func itob(v int) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, uint64(64))
