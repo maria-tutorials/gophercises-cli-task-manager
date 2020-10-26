@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"../consts"
 	"../db"
 
 	"github.com/spf13/cobra"
@@ -18,6 +19,7 @@ var doCmd = &cobra.Command{
 	Short: "Marks a task as complete",
 	Long:  "Give the task ids as params",
 	Run: func(cmd *cobra.Command, args []string) {
+		tasksBucket := consts.TASKS_BUCKET
 		ids := []int{}
 		for _, arg := range args {
 			id, err := strconv.Atoi(arg)
@@ -28,7 +30,7 @@ var doCmd = &cobra.Command{
 			}
 		}
 
-		tasks, err := db.AllTasks()
+		tasks, err := db.AllTasks(tasksBucket)
 		if err != nil {
 			fmt.Println("ups something went wrong", err)
 			return
@@ -40,7 +42,8 @@ var doCmd = &cobra.Command{
 				continue
 			}
 			t := tasks[id-1]
-			err := db.DeleteTask(t.Key)
+
+			err := db.CompleteTask(t.Key)
 			if err != nil {
 				fmt.Printf("Task `%d` not marked as done. Error %s", id, err)
 			} else {

@@ -2,13 +2,17 @@ package db
 
 import (
 	"encoding/binary"
+	"errors"
 	"log"
 	"time"
+
+	"../consts"
 
 	"github.com/boltdb/bolt"
 )
 
-var tasksBucket = []byte("tasks")
+var tasksBucket = consts.TASKS_BUCKET
+var completedBucket = consts.COMPLETED_BUCKET
 var db *bolt.DB
 
 type Task struct {
@@ -26,15 +30,22 @@ func Init(path string) error {
 
 	return db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(tasksBucket)
-		return err
+		if err != nil {
+			return err
+		}
+		_, err = tx.CreateBucketIfNotExists(completedBucket)
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 // CreateTask adds a new task to the database
-func CreateTask(task string) (int, error) {
+func CreateTask(task string, bucket []byte) (int, error) {
 	id := 0
 	err := db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(tasksBucket)
+		b := tx.Bucket(bucket)
 		id64, _ := b.NextSequence()
 		id = int(id64)
 		key := itob(id)
@@ -47,10 +58,10 @@ func CreateTask(task string) (int, error) {
 }
 
 // AllTasks displays all tasks
-func AllTasks() ([]Task, error) {
+func AllTasks(bucket []byte) ([]Task, error) {
 	t := []Task{}
 	err := db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(tasksBucket)
+		b := tx.Bucket(bucket)
 		c := b.Cursor()
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
@@ -68,15 +79,54 @@ func AllTasks() ([]Task, error) {
 	return t, nil
 }
 
-// GetTask shows a single task TODO:
-func GetTask() {
+// GetTask shows a single task
+func GetTask(key int, bucket []byte) (Task, error) {
+	t := Task{}
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucket)
+		v := b.Get(itob(key))
 
+		if v == nil {
+			return errors.New("Nothing there")
+		}
+
+		t = Task{
+			Key:   key,
+			Value: string(v),
+		}
+		return nil
+	})
+
+	if err != nil {
+		return t, err
+	}
+	return t, nil
 }
 
-// DeleteTask "marks" tasks as done
-func DeleteTask(key int) error {
+// CompleteTask "marks" tasks as done
+func CompleteTask(key int) error {
+
+	t, err := GetTask(key, tasksBucket)
+	if err != nil {
+		return err
+	}
+	_, err = CreateTask(t.Value, completedBucket)
+	if err != nil {
+		return err
+	}
+
+	err = DeleteTask(key, tasksBucket)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteTask deletes a task
+func DeleteTask(key int, bucket []byte) error {
 	return db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket(tasksBucket)
+		b := tx.Bucket(bucket)
 		return b.Delete(itob(key))
 	})
 }
